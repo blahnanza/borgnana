@@ -11,12 +11,12 @@
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 2
 # of the License, or (at your option) any later version.
-#        
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -50,8 +50,8 @@ def filter_message(message, bot):
     padding ? and ! with ". " so they also terminate lines
     and converting to lower case.
     """
-    
-    
+
+
     # to lowercase
     message = message.lower()
 
@@ -141,6 +141,7 @@ class pyborg(object):
             { "num_contexts": ("Total word contexts", 0),
               "num_words":  ("Total unique words known", 0),
               "max_words":  ("max limits in the number of words known", 6000),
+              "data_dir":   ("Directory for pyborg data files", './'),
               "learning":   ("Allow the bot to learn", 1),
               "ignore_list":("Words that can be ignored for the answer", ['!.', '?.', "'", ',', ';']),
               "censored":   ("Don't learn the sentence if one of those words is found", []),
@@ -158,16 +159,16 @@ class pyborg(object):
         # Read the dictionary
         print "Reading dictionary..."
         try:
-            zfile = zipfile.ZipFile('archive.zip','r')
+            zfile = zipfile.ZipFile(self.settings.data_dir + 'archive.zip','r')
             for filename in zfile.namelist():
                 data = zfile.read(filename)
-                f = open(filename, 'w+b')
+                f = open(self.settings.data_dir + filename, 'w+b')
                 f.write(data)
                 f.close()
         except (EOFError, IOError), e:
             print "no zip found"
         try:
-            with open("version", "rb") as vers, open("words.dat", "rb") as words, open("lines.dat", "rb") as lines:
+            with open(self.settings.data_dir + "version", "rb") as vers, open(self.settings.data_dir + "words.dat", "rb") as words, open(self.settings.data_dir + "lines.dat", "rb") as lines:
                 x = vers.read()
                 if x != self.saves_version:
                     print "Error loading dictionary\nPlease convert it before launching pyborg"
@@ -191,7 +192,7 @@ class pyborg(object):
             self.settings.num_contexts = num_contexts
             # Save new values
             self.settings.save()
-            
+
         # Is an aliases update required ?
         compteur = 0
         for x in self.settings.aliases.keys():
@@ -220,7 +221,7 @@ class pyborg(object):
 
         #unlearn words in the unlearn.txt file.
         try:
-            f = open("unlearn.txt", "r")
+            f = open(self.settings.data_dir + "unlearn.txt", "r")
             while 1:
                 word = f.readline().strip('\n')
                 if word == "":
@@ -241,39 +242,39 @@ class pyborg(object):
             print "Writing dictionary..."
 
             try:
-                zfile = zipfile.ZipFile('archive.zip', 'r')
+                zfile = zipfile.ZipFile(self.settings.data_dir + 'archive.zip', 'r')
                 for filename in zfile.namelist():
                     data = zfile.read(filename)
-                    f = open(filename, 'w+b')
+                    f = open(self.settings.data_dir + filename, 'w+b')
                     f.write(data)
                     f.close()
             except (OSError, IOError):
-                print "no zip found. Is the programm launch for first time ?"
+                print "No zip found. Ignore if this is the first launch"
 
-            with open("words.dat", "wb") as f:
+            with open(self.settings.data_dir + "words.dat", "wb") as f:
                 f.write(marshal.dumps(self.words))
 
-            with open("lines.dat", "wb") as f:
+            with open(self.settings.data_dir + "lines.dat", "wb") as f:
                 f.write(marshal.dumps(self.lines))
 
             # save the version
-            with open('version', 'w') as f:
+            with open(self.settings.data_dir + 'version', 'w') as f:
                 f.write(self.saves_version)
 
             # zip the files
-            with zipfile.ZipFile("archive.zip", "w") as f:
-                f.write('words.dat')
-                f.write('lines.dat')
-                f.write('version')
+            with zipfile.ZipFile(self.settings.data_dir + "archive.zip", "w") as f:
+                f.write(self.settings.data_dir + 'words.dat', 'words.dat')
+                f.write(self.settings.data_dir + 'lines.dat', 'lines.dat')
+                f.write(self.settings.data_dir + 'version', 'version')
 
             try:
-                os.remove('words.dat')
-                os.remove('lines.dat')
-                os.remove('version')
+                os.remove(self.settings.data_dir + 'words.dat')
+                os.remove(self.settings.data_dir + 'lines.dat')
+                os.remove(self.settings.data_dir + 'version')
             except (OSError, IOError):
                 print "could not remove the files"
 
-            f = open("words.txt", "w")
+            f = open(self.settings.data_dir + "words.txt", "w")
             # write each words known
             wordlist = []
             # Sort the list befor to export
@@ -283,7 +284,7 @@ class pyborg(object):
             map((lambda x: f.write(str(x[0])+"\n\r")), wordlist)
             f.close()
 
-            f = open("sentences.txt", "w")
+            f = open(self.settings.data_dir + "sentences.txt", "w")
             # write each words known
             wordlist = []
             # Sort the list befor to export
@@ -351,7 +352,7 @@ class pyborg(object):
                 time.sleep(.2*len(message))
             io_module.output(message, args)
 
-    
+
     def do_commands(self, io_module, body, args, owner):
         """
         Respond to user comands.
@@ -362,7 +363,7 @@ class pyborg(object):
         command_list[0] = command_list[0].lower()
 
         # Guest commands.
-    
+
         # Version string
         if command_list[0] == "!version":
             msg = self.ver_string
@@ -377,7 +378,7 @@ class pyborg(object):
             else:
                 num_cpw = 0.0
             msg = "I know %d words (%d contexts, %.2f per word), %d lines." % (num_w, num_c, num_cpw, num_l)
-                
+
         # Do i know this word
         elif command_list[0] == "!known":
             if len(command_list) == 2:
@@ -400,7 +401,7 @@ class pyborg(object):
                         msg += x+"/"+str(c)+" "
                     else:
                         msg += x+"/0 "
-    
+
         # Owner commands
         if owner == 1:
             # Save dictionary
@@ -439,7 +440,7 @@ class pyborg(object):
                     self.settings.max_words = limit
                     msg += "now " + command_list[1]
 
-            
+
             # Check for broken links in the dictionary
             elif command_list[0] == "!checkdict":
                 t = time.time()
@@ -516,7 +517,7 @@ class pyborg(object):
                 c_max = int(c_max)
 
                 for w in self.words.keys():
-                
+
                     digit = 0
                     char = 0
                     for c in w:
@@ -525,7 +526,7 @@ class pyborg(object):
                         if c.isdigit():
                             digit += 1
 
-                
+
                 #Compte les mots inferieurs a cette limite
                     c = len(self.words[w])
                     if c < 2 or ( digit and char ):
@@ -546,7 +547,7 @@ class pyborg(object):
                 msg = "Purge dictionary in %0.2fs. %d words removed" % \
                         (time.time()-t,
                         compteur)
-                
+
             # Change a typo in the dictionary
             elif command_list[0] == "!replace":
                 if len(command_list) < 3:
@@ -697,11 +698,11 @@ class pyborg(object):
                 # Close the dictionary
                 self.save_all()
                 sys.exit()
-                
+
             # Save changes
             self.settings.save()
-    
-        if msg != "":   
+
+        if msg != "":
             io_module.output(msg, args)
 
     def replace(self, old, new):
@@ -793,7 +794,7 @@ class pyborg(object):
         if len(words) == 0:
             logging.debug("Did not find any words to reply to.")
             return ""
-        
+
         # remove words on the ignore list
         words = [x for x in words if x not in self.settings.ignore_list and not x.isdigit()]
 
@@ -881,7 +882,7 @@ class pyborg(object):
             #Sort the words
             liste = pre_words.items()
             liste.sort(lambda x,y: cmp(y[1],x[1]))
-            
+
             numbers = [liste[0][1]]
             for x in xrange(1, len(liste) ):
                 numbers.append(liste[x][1] + numbers[x-1])
@@ -952,7 +953,7 @@ class pyborg(object):
             liste = post_words.items()
             liste.sort(lambda x,y: cmp(y[1],x[1]))
             numbers = [liste[0][1]]
-            
+
             for x in xrange(1, len(liste) ):
                 numbers.append(liste[x][1] + numbers[x-1])
 
@@ -985,7 +986,7 @@ class pyborg(object):
             if sentence[x][0] == "~": sentence[x] = sentence[x][1:]
 
         #Insert space between each words
-        map( (lambda x: sentence.insert(1+x*2, " ") ), xrange(0, len(sentence)-1) ) 
+        map( (lambda x: sentence.insert(1+x*2, " ") ), xrange(0, len(sentence)-1) )
 
         #correct the ' & , spaces problem
         #code is not very good and can be improve but does his job...
@@ -1066,7 +1067,7 @@ class pyborg(object):
             # Check context isn't already known
             if  hashval not in self.lines:
                 if not(num_cpw > 100 and self.settings.learning == 0):
-                    
+
                     self.lines[hashval] = [cleanbody, num_context]
                     # Add link for each word
                     for x in xrange(0, len(words)):
