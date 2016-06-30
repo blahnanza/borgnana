@@ -151,9 +151,11 @@ class pyborg(object):
             } )
 
         self.answers = self.cfgfile.cfgset()
-        self.answers.load("answers.txt",
-            { "sentences":  ("A list of prepared answers", {})
+        self.answers.load(self.settings.data_dir + "answers.txt",
+            {
+              "sentences":  ("A list of prepared answers", {})
             } )
+
         self.unfilterd = {}
 
         # Read the dictionary

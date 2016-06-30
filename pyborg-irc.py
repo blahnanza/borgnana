@@ -9,12 +9,12 @@
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 2
 # of the License, or (at your option) any later version.
-#        
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -68,8 +68,8 @@ class ModIRC(SingleServerIRCBot):
 
     # Command list for this module
     commandlist =   "IRC Module Commands:\n!chans, !ignore, \
-!join, !nick, !part, !quit, !quitmsg, !reply2ignored, !replyrate, !shutup, \
-!stealth, !unignore, !wakeup, !talk, !owner"
+!join, !nick, !part, !quit, !quitmsg, !reply2ignored, !replycommandprivmsg, \
+!replyrate, !shutup, !stealth, !unignore, !wakeup, !talk, !owner"
     # Detailed command description dictionary
     commanddict = {
         "shutup": "Owner command. Usage: !shutup\nStop the bot talking",
@@ -82,6 +82,7 @@ class ModIRC(SingleServerIRCBot):
         "unignore": "Owner command. Usage: !unignore nick1 [nick2 [...]]\nUnignores one or more nicknames",
         "replyrate": "Owner command. Usage: !replyrate [rate%]\nSet rate of bot replies to rate%. Without arguments (not an owner-only command) shows the current reply rate",
         "reply2ignored": "Owner command. Usage: !reply2ignored [on|off]\nAllow/disallow replying to ignored users. Without arguments shows the current setting",
+        "replycommandprivmsg": "Owner command. Usage !replycommandprivmsg [on|off]\nMakes the bot reply to commands in channel via privmsg to the person who commanded",
         "stealth": "Owner command. Usage: !stealth [on|off]\nTurn stealth mode on or off (disable non-owner commands and don't return CTCP VERSION). Without arguments shows the current setting",
         "quitmsg": "Owner command. Usage: !quitmsg [message]\nSet the quit message. Without arguments show the current quit message",
         "talk": "Owner command. Usage !talk nick message\nmake the bot send the sentence 'message' to 'nick'",
@@ -96,7 +97,7 @@ class ModIRC(SingleServerIRCBot):
         # PyBorg
         self.pyborg = my_pyborg
         # load settings
-        
+
         self.settings = cfgfile.cfgset()
         self.settings.load("pyborg-irc.cfg",
             { "myname": ("The bot's nickname", "PyBorg"),
@@ -118,7 +119,7 @@ class ModIRC(SingleServerIRCBot):
         self.chans = self.settings.chans[:]
 
         # Parse command prompt parameters
-        
+
         for x in xrange(1, len(args)):
             # Specify servers
             if args[x] == "-s":
@@ -190,7 +191,7 @@ class ModIRC(SingleServerIRCBot):
 
     def on_privmsg(self, c, e):
         self.on_msg(c, e)
-    
+
     def on_pubmsg(self, c, e):
         self.on_msg(c, e)
 
@@ -295,9 +296,9 @@ class ModIRC(SingleServerIRCBot):
         # double reply chance if the text contains our nickname :-)
         if body.lower().find(self.settings.myname.lower() ) != -1:
             replyrate = replyrate * 2
-        
 
-        
+
+
         # If text matches answers.txt 100% reply
         #for sentence in self.answers.sentences.keys():
         #       pattern = "^%s$" % sentence
@@ -404,7 +405,7 @@ class ModIRC(SingleServerIRCBot):
                     msg = "Whoohoo!"
                 else:
                     msg = "But i'm already awake..."
-                        
+
             # Join a channel or list of channels
             elif command_list[0] == "!join":
                 for x in xrange(1, len(command_list)):
@@ -484,13 +485,13 @@ class ModIRC(SingleServerIRCBot):
             # Save changes
             self.pyborg.settings.save()
             self.settings.save()
-    
+
         if msg == "":
             return 0
         else:
             self.output(msg, ("<none>", source, target, c, e))
             return 1
-            
+
     def output(self, message, args):
         """
         Output a line of text. args = (body, source, target, c, e)
@@ -516,7 +517,10 @@ class ModIRC(SingleServerIRCBot):
         if e.eventtype() == "join" or e.eventtype() == "quit" or e.eventtype() == "part" or e.eventtype() == "pubmsg":
             if action == 0:
                 print "[%s] <%s> > %s> %s" % ( get_time(), self.settings.myname, target, message)
-                c.privmsg(target, message)
+                if self.settings.replycommandprivmsg == 1 and body[0] == "!":
+                    c.privmsg(source, message)
+                else:
+                    c.privmsg(target, message)
             else:
                 print "[%s] <%s> > %s> /me %s" % ( get_time(), self.settings.myname, target, message)
                 c.action(target, message)
@@ -538,12 +542,12 @@ class ModIRC(SingleServerIRCBot):
                 if not source in self.owners:
                     for ni in self.owners: c.action(ni, "(From "+source+") "+body)
                     for ni in self.owners: c.action(ni, "(To   "+source+") "+message)
-                    
+
                     #map ( ( lambda x: c.action(x, "(From "+source+") "+body) ), self.owners)
                     #map ( ( lambda x: c.action(x, "(To   "+source+") "+message) ), self.owners)
 
 if __name__ == "__main__":
-    
+
     if "--help" in sys.argv:
         print "Pyborg irc bot. Usage:"
         print " pyborg-irc.py [options]"
