@@ -21,6 +21,7 @@
 #
 
 import sys
+import urllib2
 
 try:
     from pyborg.ircbot import *
@@ -43,6 +44,21 @@ import random
 import time
 import traceback
 import thread
+from HTMLParser import HTMLParser
+
+class MLStripper(HTMLParser):
+    def __init__(self):
+        self.reset()
+        self.fed = []
+    def handle_data(self, d):
+        self.fed.append(d)
+    def get_data(self):
+        return ''.join(self.fed)
+
+def strip_tags(html):
+    s = MLStripper()
+    s.feed(html)
+    return s.get_data()
 
 def get_time():
     """
@@ -68,7 +84,7 @@ class ModIRC(SingleServerIRCBot):
 
     # Command list for this module
     commandlist =   "IRC Module Commands:\n!chans, !ignore, \
-!join, !nick, !part, !quit, !quitmsg, !reply2ignored, !replycommandprivmsg, \
+!join, !nick, !loadurl, !loadurlmaxsize, !part, !quit, !quitmsg, !reply2ignored, !replycommandprivmsg, \
 !replyrate, !shutup, !stealth, !unignore, !wakeup, !talk, !owner"
     # Detailed command description dictionary
     commanddict = {
@@ -78,6 +94,8 @@ class ModIRC(SingleServerIRCBot):
         "part": "Owner command. Usage: !part #chan1 [#chan2 [...]]\nLeave one or more channels",
         "chans": "Owner command. Usage: !chans\nList channels currently on",
         "nick": "Owner command. Usage: !nick nickname\nChange nickname",
+        "loadurl": "Owner command. Usage: !loadurl URL\nLoads the URL into the bot's vocab. Use it wisely",
+        "loadurlmaxsize": "Owner command. Usage: !loadurlmaxsize URL\nMaximum size for loadurl in bytes. Bytes beyond this size will be discarded",
         "ignore": "Owner command. Usage: !ignore [nick1 [nick2 [...]]]\nIgnore one or more nicknames. Without arguments it lists ignored nicknames",
         "unignore": "Owner command. Usage: !unignore nick1 [nick2 [...]]\nUnignores one or more nicknames",
         "replyrate": "Owner command. Usage: !replyrate [rate%]\nSet rate of bot replies to rate%. Without arguments (not an owner-only command) shows the current reply rate",
@@ -109,6 +127,8 @@ class ModIRC(SingleServerIRCBot):
               "stealth": ("Hide the fact we are a bot", 0),
               "ignorelist": ("Ignore these nicknames:", []),
               "reply2ignored": ("Reply to ignored people", 0),
+              "replycommandprivmsg": ("Reply to commands via private message", 1),
+              "loadurlmaxsize": ("Maximum size in bytes for the loadurl command", 1000000),
               "reply_chance": ("Chance of reply (%) per message", 33),
               "quitmsg": ("IRC quit message", "Bye :-("),
               "password": ("password for control the bot (Edit manually !)", ""),
@@ -391,6 +411,65 @@ class ModIRC(SingleServerIRCBot):
                     else:
                         msg = msg + "off"
                         self.settings.reply2ignored = 0
+            elif command_list[0] == "!replycommandprivmsg":
+                msg = "Replying to commands via privmsg "
+                if len(command_list) == 1:
+                    if self.settings.replycommandprivmsg == 0:
+                        msg = msg + "off"
+                    else:
+                        msg = msg + "on"
+                else:
+                    toggle = command_list[1]
+                    if toggle == "on":
+                        msg = msg + "on"
+                        self.settings.replycommandprivmsg = 1
+                    else:
+                        msg = msg + "off"
+                        self.settings.replycommandprivmsg = 0
+            elif command_list[0] == "!loadurlmaxsize":
+                msg = "loadurl max size "
+                if len(command_list) == 1:
+                    msg = "loadurl max size = " + `self.settings.loadurlmaxsize` + " bytes"
+                else:
+                    try:
+                        self.settings.loadurlmaxsize = int(command_list[1])
+                        msg = "loadurl max size set to " + `self.settings.loadurlmaxsize`
+                    except Exception:
+                        msg = "Usage: !loadurlmaxsize <number of bytes>"
+            elif command_list[0] == "!loadurl":
+                if len(command_list) == 1:
+                    msg = "Usage: !loadurl <URL>"
+                else:
+                    try:
+                        changelinecount = self.pyborg.lines
+                        changewordcount = self.pyborg.settings.num_words
+
+                        counter = 0
+
+                        data = urllib2.urlopen(command_list[1]).read(self.settings.loadurlmaxsize)
+                        data = strip_tags(data)
+
+                        data.replace("\n", ' ')
+                        sentences = data.split('. ')
+
+                        for sentence in sentences:
+                            sentence += '.'
+                            buff = pyborg.filter_message(sentence, self.pyborg)
+                            counter = counter + 1
+                            try:
+                                self.pyborg.learn(buff)
+                            except Exception:
+                                # Close database cleanly
+                                print "Premature termination :-("
+                            if counter == 1000:
+                                self.pyborg.save_all()
+                                counter = 0
+                    except Exception as loadurlfail:
+                        msg = "Exception: unable to load that URL "
+                        msg = msg + str(loadurlfail)
+
+                    msg = "Loaded " + command_list[1] + " and learned " + `self.pyborg.settings.num_words - changewordcount` + " words"
+
             # Stop talking
             elif command_list[0] == "!shutup":
                 if self.settings.speaking == 1:
