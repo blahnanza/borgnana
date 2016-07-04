@@ -121,7 +121,7 @@ class ModIRC(SingleServerIRCBot):
             { "myname": ("The bot's nickname", "PyBorg"),
               "realname": ("Reported 'real name'", "Pyborg"),
               "owners": ("Owner(s) nickname", [ "OwnerNick" ]),
-              "servers": ("IRC Server to connect to (server, port [,password])", [("irc.starchat.net", 6667)]),
+              "servers": ("IRC Server to connect to (server, port [,ssl on/off] [,password])", [("irc.starchat.net", 6667)]),
               "chans": ("Channels to auto-join", ["#test"]),
               "speaking": ("Allow the bot to talk on channels", 1),
               "stealth": ("Hide the fact we are a bot", 0),
@@ -171,7 +171,6 @@ class ModIRC(SingleServerIRCBot):
     def our_start(self):
         print "Connecting to server..."
         SingleServerIRCBot.__init__(self, self.settings.servers, self.settings.myname, self.settings.realname, 2)
-
         self.start()
 
     def on_welcome(self, c, e):
@@ -278,7 +277,18 @@ class ModIRC(SingleServerIRCBot):
         # Ignore self.
         if source == self.settings.myname: return
 
+        # We want replies reply_chance%, if speaking is on
+        replyrate = self.settings.speaking * self.settings.reply_chance
 
+        if e.target() in self.settings.speakingchans:
+            replyrate = self.settings.reply_chance
+
+        # 100% reply rate if my name is mentioned
+        if body.lower().find(self.settings.myname.lower() ) != -1:
+            replyrate = 100
+            print 'I see my name!!'
+
+        # This breaks the chance of increasing replyrate if my name is mentioned!!
         #replace nicknames by "#nick"
         if e.eventtype() == "pubmsg":
             for x in self.channels[target].users():
@@ -307,15 +317,7 @@ class ModIRC(SingleServerIRCBot):
             print "Ignoring quoted text"
             return
 
-        # We want replies reply_chance%, if speaking is on
-        replyrate = self.settings.speaking * self.settings.reply_chance
 
-        if e.target() in self.settings.speakingchans:
-            replyrate = self.settings.reply_chance
-
-        # double reply chance if the text contains our nickname :-)
-        if body.lower().find(self.settings.myname.lower() ) != -1:
-            replyrate = replyrate * 2
 
 
 
@@ -444,26 +446,28 @@ class ModIRC(SingleServerIRCBot):
                         changelinecount = self.pyborg.lines
                         changewordcount = self.pyborg.settings.num_words
 
-                        counter = 0
+                        request = urllib2.urlopen(command_list[1])
 
-                        data = urllib2.urlopen(command_list[1]).read(self.settings.loadurlmaxsize)
-                        data = strip_tags(data)
-
-                        data.replace("\n", ' ')
-                        sentences = data.split('. ')
-
-                        for sentence in sentences:
-                            sentence += '.'
-                            buff = pyborg.filter_message(sentence, self.pyborg)
-                            counter = counter + 1
-                            try:
-                                self.pyborg.learn(buff)
-                            except Exception:
-                                # Close database cleanly
-                                print "Premature termination :-("
-                            if counter == 1000:
+                        linecount = 0
+                        chunk = ''
+                        for line in request:
+                            chunk += line
+                            linecount += 1
+                            if linecount > 10000:
+                                chunk += strip_tags(chunk)
+                                chunk.replace("\n", ' ')
+                                sentences = chunk.split('. ')
+                                for sentence in sentences:
+                                    sentence += '.'
+                                    buff = pyborg.filter_message(sentence, self.pyborg)
+                                    try:
+                                        self.pyborg.learn(buff)
+                                    except Exception as pyborgfail:
+                                        msg = "Exception: Pyborg unable to learn that URL "
+                                        msg = msg + str(loadurlfail)
                                 self.pyborg.save_all()
-                                counter = 0
+                                linecount = 0
+                                chunk = ''
                     except Exception as loadurlfail:
                         msg = "Exception: unable to load that URL "
                         msg = msg + str(loadurlfail)
